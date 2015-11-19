@@ -60,32 +60,58 @@ private:
     geometry_msgs::Vector3Stamped force0_out_;
     geometry_msgs::Vector3Stamped force1_out_;
     geometry_msgs::Vector3Stamped force2_out_;
+    geometry_msgs::Vector3Stamped force0_scaled_out_;
+    geometry_msgs::Vector3Stamped force1_scaled_out_;
+    geometry_msgs::Vector3Stamped force2_scaled_out_;
     Eigen::Vector4d total_force_out_;
+    std_msgs::Empty tare_in_;
 
     // OROCOS ports
     OutputPort<geometry_msgs::Vector3Stamped> port_force0_out_;
     OutputPort<geometry_msgs::Vector3Stamped> port_force1_out_;
     OutputPort<geometry_msgs::Vector3Stamped> port_force2_out_;
+    OutputPort<geometry_msgs::Vector3Stamped> port_force0_scaled_out_;
+    OutputPort<geometry_msgs::Vector3Stamped> port_force1_scaled_out_;
+    OutputPort<geometry_msgs::Vector3Stamped> port_force2_scaled_out_;
     OutputPort<Eigen::Vector4d > port_total_force_out_;
+
+    InputPort<std_msgs::Empty > port_tare_in_;
 
     // ROS parameters
     std::string dev_name_;
     std::string prefix_;
     int n_sensors_;
 
+    OptoforceSensor::Speed speed_;
+    OptoforceSensor::Filter filter_;
+    double sensitivity_;
+    double nominal_capacity_fx_;
+    double nominal_capacity_fy_;
+    double nominal_capacity_fz_;
+
 public:
     explicit OptoforceComponent(const std::string& name):
         TaskContext(name, PreOperational),
         os_(NULL),
-        n_sensors_(0)
+        n_sensors_(0),
+        speed_(OptoforceSensor::Speed333),
+        filter_(OptoforceSensor::Filter150)
     {
         this->ports()->addPort("force0_out", port_force0_out_);
         this->ports()->addPort("force1_out", port_force1_out_);
         this->ports()->addPort("force2_out", port_force2_out_);
+        this->ports()->addPort("force0_scaled_out", port_force0_scaled_out_);
+        this->ports()->addPort("force1_scaled_out", port_force1_scaled_out_);
+        this->ports()->addPort("force2_scaled_out", port_force2_scaled_out_);
         this->ports()->addPort("total_measured_force_out", port_total_force_out_);
+        this->ports()->addPort("tare_in", port_tare_in_);
         this->addProperty("device_name", dev_name_);
         this->addProperty("prefix", prefix_);
         this->addProperty("n_sensors", n_sensors_);
+        this->addProperty("sensitivity", sensitivity_);
+        this->addProperty("nominal_capacity_x", nominal_capacity_fx_);
+        this->addProperty("nominal_capacity_y", nominal_capacity_fy_);
+        this->addProperty("nominal_capacity_z", nominal_capacity_fz_);
     }
 
     ~OptoforceComponent() {
@@ -109,11 +135,27 @@ public:
                 port_force0_out_.setDataSample(force0_out_);
                 port_force1_out_.setDataSample(force1_out_);
                 port_force2_out_.setDataSample(force2_out_);
+                port_force0_scaled_out_.setDataSample(force0_scaled_out_);
+                port_force1_scaled_out_.setDataSample(force1_scaled_out_);
+                port_force2_scaled_out_.setDataSample(force2_scaled_out_);
 
                 total_force_out_.setZero();
 
                 if (os_->isDevOpened()) {
-                    os_->setConfiguration(OptoforceSensor::Speed333, OptoforceSensor::Filter150, OptoforceSensor::ZeroSet);
+                    os_->setConfiguration(speed_, filter_, OptoforceSensor::ZeroSet);
+                    std::cout << "OptoforceComponent::configureHook success" << std::endl;
+                    return true;
+                }
+            }
+            else if (n_sensors_ == 1) {
+                os_ = new OptoforceSensor(dev_name_, OptoforceSensor::SensorType1Ch);
+
+                port_force0_out_.setDataSample(force0_out_);
+
+                total_force_out_.setZero();
+
+                if (os_->isDevOpened()) {
+                    os_->setConfiguration(speed_, filter_, OptoforceSensor::ZeroSet);
                     std::cout << "OptoforceComponent::configureHook success" << std::endl;
                     return true;
                 }
@@ -134,37 +176,73 @@ public:
     }
 
     // RTT update hook
-    // This function runs every 1 ms (1000 Hz).
-    // The i-th tactile data is published every 6 ms (166.66 Hz),
-    // so all 4 tactiles' data is published every 25 ms (40 Hz).
-    // Temperature is published every 100 ms (10 Hz).
     void updateHook()
     {
-        Eigen::Vector3d f1, f2, f3;
-        if (os_->read(f1, f2, f3)) {
-            force0_out_.header.stamp = ros::Time::now();
-            force0_out_.vector.x = f1(0);
-            force0_out_.vector.y = f1(1);
-            force0_out_.vector.z = f1(2);
+        if (port_tare_in_.read(tare_in_) == RTT::NewData) {
+            os_->setConfiguration(speed_, filter_, OptoforceSensor::ZeroRestore);
+            os_->setConfiguration(speed_, filter_, OptoforceSensor::ZeroSet);
+        }
 
-            force1_out_.header.stamp = ros::Time::now();
-            force1_out_.vector.x = f2(0);
-            force1_out_.vector.y = f2(1);
-            force1_out_.vector.z = f2(2);
+        if (n_sensors_ == 3) {
+            Eigen::Vector3d f1, f2, f3;
+            if (os_->read(f1, f2, f3)) {
+                force0_out_.header.stamp = ros::Time::now();
+                force0_out_.vector.x = f1(0);
+                force0_out_.vector.y = f1(1);
+                force0_out_.vector.z = f1(2);
+                force0_scaled_out_.header.stamp = ros::Time::now();
+                force0_scaled_out_.vector.x = f1(0) / sensitivity_ * nominal_capacity_fx_;
+                force0_scaled_out_.vector.y = f1(1) / sensitivity_ * nominal_capacity_fy_;
+                force0_scaled_out_.vector.z = f1(2) / sensitivity_ * nominal_capacity_fz_;
 
-            force2_out_.header.stamp = ros::Time::now();
-            force2_out_.vector.x = f3(0);
-            force2_out_.vector.y = f3(1);
-            force2_out_.vector.z = f3(2);
+                force1_out_.header.stamp = ros::Time::now();
+                force1_out_.vector.x = f2(0);
+                force1_out_.vector.y = f2(1);
+                force1_out_.vector.z = f2(2);
+                force1_scaled_out_.header.stamp = ros::Time::now();
+                force1_scaled_out_.vector.x = f2(0) / sensitivity_ * nominal_capacity_fx_;
+                force1_scaled_out_.vector.y = f2(1) / sensitivity_ * nominal_capacity_fy_;
+                force1_scaled_out_.vector.z = f2(2) / sensitivity_ * nominal_capacity_fz_;
 
-            port_force0_out_.write(force0_out_);
-            port_force1_out_.write(force1_out_);
-            port_force2_out_.write(force2_out_);
+                force2_out_.header.stamp = ros::Time::now();
+                force2_out_.vector.x = f3(0);
+                force2_out_.vector.y = f3(1);
+                force2_out_.vector.z = f3(2);
+                force2_scaled_out_.header.stamp = ros::Time::now();
+                force2_scaled_out_.vector.x = f3(0) / sensitivity_ * nominal_capacity_fx_;
+                force2_scaled_out_.vector.y = f3(1) / sensitivity_ * nominal_capacity_fy_;
+                force2_scaled_out_.vector.z = f3(2) / sensitivity_ * nominal_capacity_fz_;
 
-            total_force_out_(0) = f1.norm();
-            total_force_out_(1) = f2.norm();
-            total_force_out_(2) = f3.norm();
-            port_total_force_out_.write(total_force_out_);
+                port_force0_out_.write(force0_out_);
+                port_force1_out_.write(force1_out_);
+                port_force2_out_.write(force2_out_);
+                port_force0_scaled_out_.write(force0_scaled_out_);
+                port_force1_scaled_out_.write(force1_scaled_out_);
+                port_force2_scaled_out_.write(force2_scaled_out_);
+
+                total_force_out_(0) = f1.norm();
+                total_force_out_(1) = f2.norm();
+                total_force_out_(2) = f3.norm();
+                port_total_force_out_.write(total_force_out_);
+            }
+        }
+        else if (n_sensors_ == 1) {
+            Eigen::Vector3d f;
+            if (os_->read(f)) {
+                force0_out_.header.stamp = ros::Time::now();
+                force0_out_.vector.x = f(0);
+                force0_out_.vector.y = f(1);
+                force0_out_.vector.z = f(2);
+                force0_scaled_out_.vector.x = f(0) / sensitivity_ * nominal_capacity_fx_;
+                force0_scaled_out_.vector.y = f(1) / sensitivity_ * nominal_capacity_fy_;
+                force0_scaled_out_.vector.z = f(2) / sensitivity_ * nominal_capacity_fz_;
+
+                port_force0_out_.write(force0_out_);
+                port_force0_scaled_out_.write(force0_scaled_out_);
+
+                total_force_out_(0) = f.norm();
+                port_total_force_out_.write(total_force_out_);
+            }
         }
     }
 };
