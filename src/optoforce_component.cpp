@@ -84,10 +84,12 @@ private:
 
     OptoforceSensor::Speed speed_;
     OptoforceSensor::Filter filter_;
-    double sensitivity_;
     double nominal_capacity_fx_;
     double nominal_capacity_fy_;
     double nominal_capacity_fz_;
+    double counts_nc_0_;
+    double counts_nc_1_;
+    double counts_nc_2_;
 
 public:
     explicit OptoforceComponent(const std::string& name):
@@ -108,10 +110,12 @@ public:
         this->addProperty("device_name", dev_name_);
         this->addProperty("prefix", prefix_);
         this->addProperty("n_sensors", n_sensors_);
-        this->addProperty("sensitivity", sensitivity_);
         this->addProperty("nominal_capacity_x", nominal_capacity_fx_);
         this->addProperty("nominal_capacity_y", nominal_capacity_fy_);
         this->addProperty("nominal_capacity_z", nominal_capacity_fz_);
+        this->addProperty("counts_nc_0", counts_nc_0_);
+        this->addProperty("counts_nc_1", counts_nc_1_);
+        this->addProperty("counts_nc_2", counts_nc_2_);
     }
 
     ~OptoforceComponent() {
@@ -175,6 +179,10 @@ public:
     {
     }
 
+    Eigen::Vector3d scaleForce(const Eigen::Vector3d &force, double counts_nc, double nc_x, double nc_y, double nc_z) {
+        return Eigen::Vector3d( force(0) / counts_nc * nc_x, force(1) / counts_nc * nc_y, force(2) / counts_nc * nc_z);
+    }
+
     // RTT update hook
     void updateHook()
     {
@@ -186,32 +194,36 @@ public:
         if (n_sensors_ == 3) {
             Eigen::Vector3d f1, f2, f3;
             if (os_->read(f1, f2, f3)) {
+                Eigen::Vector3d f1_scaled = scaleForce(f1, counts_nc_0_, nominal_capacity_fx_, nominal_capacity_fy_, nominal_capacity_fz_);
+                Eigen::Vector3d f2_scaled = scaleForce(f2, counts_nc_1_, nominal_capacity_fx_, nominal_capacity_fy_, nominal_capacity_fz_);
+                Eigen::Vector3d f3_scaled = scaleForce(f3, counts_nc_2_, nominal_capacity_fx_, nominal_capacity_fy_, nominal_capacity_fz_);
+
                 force0_out_.header.stamp = ros::Time::now();
                 force0_out_.vector.x = f1(0);
                 force0_out_.vector.y = f1(1);
                 force0_out_.vector.z = f1(2);
                 force0_scaled_out_.header.stamp = ros::Time::now();
-                force0_scaled_out_.vector.x = f1(0) / sensitivity_ * nominal_capacity_fx_;
-                force0_scaled_out_.vector.y = f1(1) / sensitivity_ * nominal_capacity_fy_;
-                force0_scaled_out_.vector.z = f1(2) / sensitivity_ * nominal_capacity_fz_;
+                force0_scaled_out_.vector.x = f1_scaled(0);
+                force0_scaled_out_.vector.y = f1_scaled(1);
+                force0_scaled_out_.vector.z = f1_scaled(2);
 
                 force1_out_.header.stamp = ros::Time::now();
                 force1_out_.vector.x = f2(0);
                 force1_out_.vector.y = f2(1);
                 force1_out_.vector.z = f2(2);
                 force1_scaled_out_.header.stamp = ros::Time::now();
-                force1_scaled_out_.vector.x = f2(0) / sensitivity_ * nominal_capacity_fx_;
-                force1_scaled_out_.vector.y = f2(1) / sensitivity_ * nominal_capacity_fy_;
-                force1_scaled_out_.vector.z = f2(2) / sensitivity_ * nominal_capacity_fz_;
+                force1_scaled_out_.vector.x = f2_scaled(0);
+                force1_scaled_out_.vector.y = f2_scaled(1);
+                force1_scaled_out_.vector.z = f2_scaled(2);
 
                 force2_out_.header.stamp = ros::Time::now();
                 force2_out_.vector.x = f3(0);
                 force2_out_.vector.y = f3(1);
                 force2_out_.vector.z = f3(2);
                 force2_scaled_out_.header.stamp = ros::Time::now();
-                force2_scaled_out_.vector.x = f3(0) / sensitivity_ * nominal_capacity_fx_;
-                force2_scaled_out_.vector.y = f3(1) / sensitivity_ * nominal_capacity_fy_;
-                force2_scaled_out_.vector.z = f3(2) / sensitivity_ * nominal_capacity_fz_;
+                force2_scaled_out_.vector.x = f3_scaled(0);
+                force2_scaled_out_.vector.y = f3_scaled(1);
+                force2_scaled_out_.vector.z = f3_scaled(2);
 
                 port_force0_out_.write(force0_out_);
                 port_force1_out_.write(force1_out_);
@@ -220,27 +232,29 @@ public:
                 port_force1_scaled_out_.write(force1_scaled_out_);
                 port_force2_scaled_out_.write(force2_scaled_out_);
 
-                total_force_out_(0) = f1.norm();
-                total_force_out_(1) = f2.norm();
-                total_force_out_(2) = f3.norm();
+                total_force_out_(0) = f1_scaled.norm();
+                total_force_out_(1) = f2_scaled.norm();
+                total_force_out_(2) = f3_scaled.norm();
                 port_total_force_out_.write(total_force_out_);
             }
         }
         else if (n_sensors_ == 1) {
             Eigen::Vector3d f;
             if (os_->read(f)) {
+                Eigen::Vector3d f_scaled = scaleForce(f, counts_nc_0_, nominal_capacity_fx_, nominal_capacity_fy_, nominal_capacity_fz_);
+
                 force0_out_.header.stamp = ros::Time::now();
                 force0_out_.vector.x = f(0);
                 force0_out_.vector.y = f(1);
                 force0_out_.vector.z = f(2);
-                force0_scaled_out_.vector.x = f(0) / sensitivity_ * nominal_capacity_fx_;
-                force0_scaled_out_.vector.y = f(1) / sensitivity_ * nominal_capacity_fy_;
-                force0_scaled_out_.vector.z = f(2) / sensitivity_ * nominal_capacity_fz_;
+                force0_scaled_out_.vector.x = f_scaled(0);
+                force0_scaled_out_.vector.y = f_scaled(1);
+                force0_scaled_out_.vector.z = f_scaled(2);
 
                 port_force0_out_.write(force0_out_);
                 port_force0_scaled_out_.write(force0_scaled_out_);
 
-                total_force_out_(0) = f.norm();
+                total_force_out_(0) = f_scaled.norm();
                 port_total_force_out_.write(total_force_out_);
             }
         }
