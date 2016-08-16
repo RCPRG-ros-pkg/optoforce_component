@@ -3,7 +3,7 @@ project(optoforce_component)
 
 
 find_package(catkin REQUIRED COMPONENTS
-  roscpp rtt_ros rtt_roscomm barrett_hand_controller_msgs geometry_msgs sensor_msgs cmake_modules optoforce_can can_driver)
+  roscpp rtt_ros rtt_roscomm geometry_msgs sensor_msgs cmake_modules optoforce_can can_driver)
 
 find_package(Eigen REQUIRED)
 

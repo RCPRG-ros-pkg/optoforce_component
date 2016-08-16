@@ -33,16 +33,13 @@ import math
 
 import std_msgs.msg
 from std_msgs.msg import ColorRGBA
-from barrett_hand_controller_msgs.msg import *
 from visualization_msgs.msg import *
 from geometry_msgs.msg import *
 from sensor_msgs.msg import Image
 import PyKDL
 import tf_conversions.posemath as pm
 
-import barrett_hand_tactile_interface
-
-class BarrettHandOptoforceMarkers:
+class OptoforceMarkers:
 
     # ****************** markers **********************
 
@@ -120,7 +117,6 @@ if __name__ == '__main__':
         exit(0)
 
     rospy.init_node(prefix+'_hand_optoforce_vis', anonymous=True)
-    bhm = BarrettHandOptoforceMarkers(prefix)
+    bhm = OptoforceMarkers(prefix)
     bhm.spin()
-
 
