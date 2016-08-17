@@ -81,21 +81,31 @@ private:
     std::string dev_name_;
     std::string prefix_;
     int n_sensors_;
+    int can_rx_id_;
+    int can_tx_id_;
 
     OptoforceSensor::Speed speed_;
     OptoforceSensor::Filter filter_;
     double nominal_capacity_fx_;
     double nominal_capacity_fy_;
     double nominal_capacity_fz_;
-    double counts_nc_0_;
-    double counts_nc_1_;
-    double counts_nc_2_;
+    double counts_nc_0_x_;
+    double counts_nc_0_y_;
+    double counts_nc_0_z_;
+    double counts_nc_1_x_;
+	double counts_nc_1_y_;
+	double counts_nc_1_z_;
+	double counts_nc_2_x_;
+	double counts_nc_2_y_;
+	double counts_nc_2_z_;
 
 public:
     explicit OptoforceComponent(const std::string& name):
         TaskContext(name, PreOperational),
         os_(NULL),
         n_sensors_(0),
+		can_rx_id_(0x100),
+		can_tx_id_(0x101),
         speed_(OptoforceSensor::Speed333),
         filter_(OptoforceSensor::Filter150)
     {
@@ -110,12 +120,20 @@ public:
         this->addProperty("device_name", dev_name_);
         this->addProperty("prefix", prefix_);
         this->addProperty("n_sensors", n_sensors_);
+        this->addProperty("can_rx_id", can_rx_id_);
+        this->addProperty("can_tx_id", can_tx_id_);
         this->addProperty("nominal_capacity_x", nominal_capacity_fx_);
         this->addProperty("nominal_capacity_y", nominal_capacity_fy_);
         this->addProperty("nominal_capacity_z", nominal_capacity_fz_);
-        this->addProperty("counts_nc_0", counts_nc_0_);
-        this->addProperty("counts_nc_1", counts_nc_1_);
-        this->addProperty("counts_nc_2", counts_nc_2_);
+        this->addProperty("counts_nc_0_x", counts_nc_0_x_);
+        this->addProperty("counts_nc_0_y", counts_nc_0_y_);
+        this->addProperty("counts_nc_0_z", counts_nc_0_z_);
+        this->addProperty("counts_nc_1_x", counts_nc_1_x_);
+        this->addProperty("counts_nc_1_y", counts_nc_1_y_);
+        this->addProperty("counts_nc_1_z", counts_nc_1_z_);
+        this->addProperty("counts_nc_2_x", counts_nc_2_x_);
+		this->addProperty("counts_nc_2_y", counts_nc_2_y_);
+		this->addProperty("counts_nc_2_z", counts_nc_2_z_);
     }
 
     ~OptoforceComponent() {
@@ -134,7 +152,7 @@ public:
         if (!dev_name_.empty() && !prefix_.empty() && n_sensors_ > 0 && os_ == NULL) {
 
             if (n_sensors_ == 3) {
-                os_ = new OptoforceSensor(dev_name_, OptoforceSensor::SensorType4Ch);
+                os_ = new OptoforceSensor(dev_name_, OptoforceSensor::SensorType4Ch, can_rx_id_, can_tx_id_);
 
                 port_force0_out_.setDataSample(force0_out_);
                 port_force1_out_.setDataSample(force1_out_);
@@ -152,7 +170,7 @@ public:
                 }
             }
             else if (n_sensors_ == 1) {
-                os_ = new OptoforceSensor(dev_name_, OptoforceSensor::SensorType1Ch);
+                os_ = new OptoforceSensor(dev_name_, OptoforceSensor::SensorType1Ch, can_rx_id_, can_tx_id_);
 
                 port_force0_out_.setDataSample(force0_out_);
 
@@ -179,8 +197,8 @@ public:
     {
     }
 
-    Eigen::Vector3d scaleForce(const Eigen::Vector3d &force, double counts_nc, double nc_x, double nc_y, double nc_z) {
-        return Eigen::Vector3d( force(0) / counts_nc * nc_x, force(1) / counts_nc * nc_y, force(2) / counts_nc * nc_z);
+    Eigen::Vector3d scaleForce(const Eigen::Vector3d &force, double counts_nc_x, double counts_nc_y, double counts_nc_z, double nc_x, double nc_y, double nc_z) {
+        return Eigen::Vector3d( force(0) / counts_nc_x * nc_x, force(1) / counts_nc_y * nc_y, force(2) / counts_nc_z * nc_z);
     }
 
     // RTT update hook
@@ -194,9 +212,9 @@ public:
         if (n_sensors_ == 3) {
             Eigen::Vector3d f1, f2, f3;
             if (os_->read(f1, f2, f3)) {
-                Eigen::Vector3d f1_scaled = scaleForce(f1, counts_nc_0_, nominal_capacity_fx_, nominal_capacity_fy_, nominal_capacity_fz_);
-                Eigen::Vector3d f2_scaled = scaleForce(f2, counts_nc_1_, nominal_capacity_fx_, nominal_capacity_fy_, nominal_capacity_fz_);
-                Eigen::Vector3d f3_scaled = scaleForce(f3, counts_nc_2_, nominal_capacity_fx_, nominal_capacity_fy_, nominal_capacity_fz_);
+                Eigen::Vector3d f1_scaled = scaleForce(f1, counts_nc_0_x_, counts_nc_0_y_, counts_nc_0_z_, nominal_capacity_fx_, nominal_capacity_fy_, nominal_capacity_fz_);
+                Eigen::Vector3d f2_scaled = scaleForce(f2, counts_nc_1_x_, counts_nc_1_y_, counts_nc_1_z_, nominal_capacity_fx_, nominal_capacity_fy_, nominal_capacity_fz_);
+                Eigen::Vector3d f3_scaled = scaleForce(f3, counts_nc_2_x_, counts_nc_2_y_, counts_nc_2_z_, nominal_capacity_fx_, nominal_capacity_fy_, nominal_capacity_fz_);
 
                 force0_out_.header.stamp = ros::Time::now();
                 force0_out_.vector.x = f1(0);
@@ -241,7 +259,7 @@ public:
         else if (n_sensors_ == 1) {
             Eigen::Vector3d f;
             if (os_->read(f)) {
-                Eigen::Vector3d f_scaled = scaleForce(f, counts_nc_0_, nominal_capacity_fx_, nominal_capacity_fy_, nominal_capacity_fz_);
+                Eigen::Vector3d f_scaled = scaleForce(f, counts_nc_0_x_, counts_nc_0_y_, counts_nc_0_z_, nominal_capacity_fx_, nominal_capacity_fy_, nominal_capacity_fz_);
 
                 force0_out_.header.stamp = ros::Time::now();
                 force0_out_.vector.x = f(0);
