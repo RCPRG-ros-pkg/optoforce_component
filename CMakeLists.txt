@@ -3,11 +3,11 @@ project(optoforce_component)
 
 
 find_package(catkin REQUIRED COMPONENTS
-  roscpp rtt_ros rtt_roscomm geometry_msgs sensor_msgs cmake_modules optoforce_can can_driver)
+  roscpp rtt_ros rtt_roscomm geometry_msgs sensor_msgs optoforce_can can_driver)
 
-find_package(Eigen REQUIRED)
+find_package(Eigen3 REQUIRED)
 
-include_directories(include ${catkin_INCLUDE_DIRS} ${BOOST_INCLUDE_DIRS} ${Eigen_INCLUDE_DIRS})
+include_directories(include ${catkin_INCLUDE_DIRS} ${BOOST_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR})
 
 orocos_component(optoforce_component src/optoforce_component.cpp)
 
