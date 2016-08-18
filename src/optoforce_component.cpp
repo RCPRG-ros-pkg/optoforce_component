@@ -25,6 +25,12 @@
  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <math.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
 #include <rtt/TaskContext.hpp>
 #include <rtt/Port.hpp>
 #include <rtt/RTT.hpp>
@@ -35,25 +41,18 @@
 #include <std_msgs/Int32.h>
 #include <geometry_msgs/Vector3Stamped.h>
 
-#include "rtt_rosclock/rtt_rosclock.h"
-
 #include <string>
-#include <math.h>
+
+#include "rtt_rosclock/rtt_rosclock.h"
 #include "optoforce_can/OptoforceSensor.h"
-
-#include <fcntl.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-
 #include "Eigen/Dense"
+
 
 using RTT::InputPort;
 using RTT::OutputPort;
 
 class OptoforceComponent : public RTT::TaskContext {
  private:
-
   OptoforceSensor *os_;
 
   // port variables
@@ -151,12 +150,11 @@ class OptoforceComponent : public RTT::TaskContext {
   // RTT configure hook
   bool configureHook() {
     std::cout << "OptoforceComponent::configureHook, parameters: dev_name="
-        << dev_name_ << "  prefix=" << prefix_ << "  n_sensors=" << n_sensors_
-        << std::endl;
+              << dev_name_ << "  prefix=" << prefix_ << "  n_sensors="
+              << n_sensors_ << std::endl;
     if (!test_mode_) {
       if (!dev_name_.empty() && !prefix_.empty() && n_sensors_ > 0
-          && os_ == NULL) {
-
+      && os_ == NULL) {
         if (n_sensors_ == 3) {
           os_ = new OptoforceSensor(dev_name_, OptoforceSensor::SensorType4Ch,
                                     can_rx_id_, can_tx_id_);
@@ -173,7 +171,7 @@ class OptoforceComponent : public RTT::TaskContext {
           if (os_->isDevOpened()) {
             os_->setConfiguration(speed_, filter_, OptoforceSensor::ZeroSet);
             std::cout << "OptoforceComponent::configureHook success"
-                << std::endl;
+                      << std::endl;
             return true;
           }
         } else if (n_sensors_ == 1) {
@@ -187,7 +185,7 @@ class OptoforceComponent : public RTT::TaskContext {
           if (os_->isDevOpened()) {
             os_->setConfiguration(speed_, filter_, OptoforceSensor::ZeroSet);
             std::cout << "OptoforceComponent::configureHook success"
-                << std::endl;
+                      << std::endl;
             return true;
           }
         }
@@ -198,7 +196,7 @@ class OptoforceComponent : public RTT::TaskContext {
 
     } else {
       std::cout << "OptoforceComponent test mode::configureHook success"
-          << std::endl;
+                << std::endl;
       return true;
     }
   }
@@ -231,7 +229,7 @@ class OptoforceComponent : public RTT::TaskContext {
     if (n_sensors_ == 3) {
       Eigen::Vector3d f1, f2, f3;
       if (!test_mode_) {
-        if (os_->read(f1, f2, f3)) {
+        if (os_->read(&f1, &f2, &f3)) {
           Eigen::Vector3d f1_scaled = scaleForce(f1, counts_nc_0_x_,
                                                  counts_nc_0_y_, counts_nc_0_z_,
                                                  nominal_capacity_fx_,
@@ -300,7 +298,7 @@ class OptoforceComponent : public RTT::TaskContext {
     } else if (n_sensors_ == 1) {
       Eigen::Vector3d f;
       if (!test_mode_) {
-        if (os_->read(f)) {
+        if (os_->read(&f)) {
           Eigen::Vector3d f_scaled = scaleForce(f, counts_nc_0_x_,
                                                 counts_nc_0_y_, counts_nc_0_z_,
                                                 nominal_capacity_fx_,
